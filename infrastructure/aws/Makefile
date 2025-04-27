@@ -17,36 +17,36 @@
 
 .PHONY: tf-init
 tf-init: ## Initialize Terraform
-	@ docker-compose run --rm terraform init
+	@ docker compose run --rm terraform init
 
 .PHONY: tf-fmt
 tf-fmt: ## Format files in terraform
-	@ docker-compose run --rm terraform fmt
+	@ docker compose run --rm terraform fmt
 
 .PHONY: tf-validate
 tf-validate: ## Validate Terraform file is valid
-	@ docker-compose run --rm terraform validate
+	@ docker compose run --rm terraform validate
 
 .PHONY: tf-plan
 tf-plan: ## Run Terraform plan
-	@ docker-compose run --rm terraform plan
+	@ docker compose run --rm terraform plan
 
 # Refresh does not modify the state file, it only updates the state file with the current state of the infrastructure
 .PHONY: tf-refresh
 tf-refresh: ## Run Terraform refresh
-	@ docker-compose run --rm terraform refresh
+	@ docker compose run --rm terraform refresh
 
 .PHONY: tf-apply
 tf-apply: ## Run Terraform apply
-	@ docker-compose run --rm terraform apply
+	@ docker compose run --rm terraform apply
 
 .PHONY: tf-destroy
 tf-destroy: ## Run Terraform destroy
-	@ docker-compose run --rm terraform destroy
+	@ docker compose run --rm terraform destroy
 
 .PHONY: tf-output
 tf-output: ## Run Terraform output
-	@ docker-compose run --rm terraform output
+	@ docker compose run --rm terraform output
 
 help:
 	@ echo "Please use \`make <target>' where <target> is one of"
