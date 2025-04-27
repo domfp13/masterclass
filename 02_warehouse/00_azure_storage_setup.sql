@@ -1,0 +1,9 @@
+
+USE ROLE ACCOUNTADMIN;
+
+CREATE STORAGE INTEGRATION MASTERCLASS_AZURE
+  TYPE = EXTERNAL_STAGE
+  STORAGE_PROVIDER = 'AZURE'
+  ENABLED = TRUE
+  AZURE_TENANT_ID = '<tenant_id>'
+  STORAGE_ALLOWED_LOCATIONS = ('azure://<account>.blob.core.windows.net/<container>/<path>/');
