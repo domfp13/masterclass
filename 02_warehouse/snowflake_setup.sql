@@ -8,3 +8,7 @@ CREATE STORAGE INTEGRATION MASTERCLASS
   STORAGE_ALLOWED_LOCATIONS = ('<protocol>://<bucket>/<path>/') -- Terraform output
 
 DESC INTEGRATION MASTERCLASS;
+
+-- Get and substitute in terraform
+-- STORAGE_AWS_IAM_USER_ARN -> Principal->AWS
+-- STORAGE_AWS_EXTERNAL_ID -> sts:ExternalId
