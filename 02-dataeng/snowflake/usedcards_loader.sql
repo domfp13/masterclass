@@ -14,6 +14,7 @@ CREATE FILE FORMAT IF NOT EXISTS PARQUET_FILE_FORMAT
 --  URL='s3://<bucket>/lineitems/'
 --  STORAGE_INTEGRATION = MASTERCLASS
 --  COMMENT = 'Lineitems data stage';
+
 LIST @MASTERCLASS.PUBLIC.DATA_STAGE;
 
 -- Creating a table to load the data into
