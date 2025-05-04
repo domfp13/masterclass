@@ -5,7 +5,7 @@ CREATE STORAGE INTEGRATION MASTERCLASS
   STORAGE_PROVIDER = 'S3'
   ENABLED = TRUE
   STORAGE_AWS_ROLE_ARN = '<iam_role>' -- Terraform output
-  STORAGE_ALLOWED_LOCATIONS = ('<protocol>://<bucket>/<path>/') -- Terraform output
+  STORAGE_ALLOWED_LOCATIONS = ('s3://<bucket>/') -- Terraform output
 
 DESC INTEGRATION MASTERCLASS;
 
