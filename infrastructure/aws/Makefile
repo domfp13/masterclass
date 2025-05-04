@@ -42,6 +42,7 @@ tf-apply: ## Run Terraform apply
 
 .PHONY: tf-destroy
 tf-destroy: ## Run Terraform destroy
+	@ aws s3 rm s3://my-bucket --recursive
 	@ docker compose run --rm terraform destroy
 
 .PHONY: tf-output
