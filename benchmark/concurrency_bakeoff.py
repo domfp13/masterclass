@@ -67,7 +67,7 @@ if __name__ == "__main__":
     parser.add_argument("kind", choices=["snowflake", "databricks"])
     args = parser.parse_args()
 
-    for users in (1, 8, 32, 64, 100):
+    for users in (1, 8, 32, 64):
         times = exercise(args.kind, users)
         print(f"{users:>2} users  →  p50 {statistics.median(times):5.2f}s  "
               f"p95 {statistics.quantiles(times, n=20)[18]:5.2f}s  "
