@@ -71,6 +71,20 @@ resource "aws_iam_role" "s3_role" {
   })
 }
 
+resource "aws_s3_bucket_notification" "dataeng_snowpipe_notification" {
+  bucket = aws_s3_bucket.s3_bucket.id
+  queue {
+    queue_arn     = "COMMENT_AND_CREATE_SNOWPIPE_02_NOTEBOOK_FIRST"
+    events        = ["s3:ObjectCreated:*"]
+    filter_prefix = "dataeng/"
+  }
+
+  # ensure the bucket exists before we try to configure notifications
+  depends_on = [
+    aws_s3_bucket.s3_bucket
+  ]
+}
+
 resource "aws_iam_role_policy_attachment" "s3_role_attachment" {
   policy_arn = aws_iam_policy.bucket_policy.arn
   role       = aws_iam_role.s3_role.name
