@@ -1,7 +1,10 @@
 # python concurrency_bakeoff.py snowflake OR python concurrency_bakeoff.py databricks
 
+
 import time, threading, statistics, argparse, os, sys
 from concurrent.futures import ThreadPoolExecutor
+# pip install matplotlib
+import matplotlib.pyplot as plt  
 # pip install python-dotenv
 from dotenv import load_dotenv
 
@@ -64,15 +67,60 @@ def exercise(kind, concurrency):
             durations.append(f.result())
     return durations
 
-# ---------- main ----------
+
+# ---------- charting helper ----------
+def safe_quantile(times, n, idx):
+    if len(times) < 2:
+        return float('nan')
+    try:
+        return statistics.quantiles(times, n=n)[idx]
+    except Exception:
+        return float('nan')
+
+def plot_results(results):
+    users = sorted(next(iter(results.values())).keys())
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for kind, data in results.items():
+        p50 = [statistics.median(data[u]) if data[u] else float('nan') for u in users]
+        p95 = [safe_quantile(data[u], 20, 18) for u in users]
+        maxv = [max(data[u]) if data[u] else float('nan') for u in users]
+        ax.plot(users, p50, marker='o', label=f'{kind} p50')
+        ax.plot(users, p95, marker='x', linestyle='--', label=f'{kind} p95')
+        ax.plot(users, maxv, marker='s', linestyle=':', label=f'{kind} max')
+    ax.set_xlabel('Concurrent Users')
+    ax.set_ylabel('Query Time (s)')
+    ax.set_title('Concurrency Benchmark: Snowflake vs Databricks')
+    ax.legend()
+    ax.grid(True)
+    plt.tight_layout()
+    plt.show()
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("kind", choices=["snowflake", "databricks"])
+    parser.add_argument("--platforms", nargs="*", default=["snowflake", "databricks"],
+                        help="Platforms to benchmark (default: both)")
+    parser.add_argument("--users", nargs="*", type=int, default=[1, 8, 32, 64],
+                        help="List of concurrent user counts")
     args = parser.parse_args()
 
-    for users in (1, 8, 32, 64):
-        times = exercise(args.kind, users)
-        print(f"{users:>2} users  →  p50 {statistics.median(times):5.2f}s  "
-              f"p95 {statistics.quantiles(times, n=20)[18]:5.2f}s  "
-              f"max {max(times):5.2f}s  "
-              f"(n={len(times)})")
+    results = {kind: {} for kind in args.platforms}
+    for kind in args.platforms:
+        print(f"\n--- {kind.upper()} ---")
+        for users in args.users:
+            try:
+                times = exercise(kind, users)
+            except Exception as e:
+                print(f"{users:>2} users  →  ERROR: {e}")
+                times = []
+            results[kind][users] = times
+            if times:
+                p50 = statistics.median(times)
+                p95 = safe_quantile(times, 20, 18)
+                maxv = max(times)
+                print(f"{users:>2} users  →  p50 {p50:5.2f}s  "
+                      f"p95 {p95:5.2f}s  "
+                      f"max {maxv:5.2f}s  "
+                      f"(n={len(times)})")
+            else:
+                print(f"{users:>2} users  →  No data")
+    plot_results(results)
