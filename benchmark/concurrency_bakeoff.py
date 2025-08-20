@@ -2,6 +2,7 @@
 
 import time, threading, statistics, argparse, os, sys
 from concurrent.futures import ThreadPoolExecutor
+# pip install python-dotenv
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -9,6 +10,7 @@ load_dotenv()
 
 # ---------- connection helpers ----------
 def snowflake_connect():
+    #pip install snowflake-connector-python
     import snowflake.connector
     return snowflake.connector.connect(
         user=os.getenv("SF_USER"),
@@ -20,6 +22,7 @@ def snowflake_connect():
     )
 
 def databricks_connect():
+    #pip install databricks-sql-connector
     from databricks import sql
     return sql.connect(
         server_hostname=os.getenv("SERVER_HOSTNAME"),
