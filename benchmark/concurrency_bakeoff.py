@@ -7,6 +7,7 @@ from concurrent.futures import ThreadPoolExecutor
 import matplotlib.pyplot as plt  
 # pip install python-dotenv
 from dotenv import load_dotenv
+# pip install pyarrow
 
 # Load environment variables from .env file
 load_dotenv() 
