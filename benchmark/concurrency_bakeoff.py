@@ -1,20 +1,22 @@
 # python concurrency_bakeoff.py snowflake OR python concurrency_bakeoff.py databricks
+# python concurrency_bakeoff.py --show
 
+# pip install matplotlib
+# pip install python-dotenv
+# pip install pyarrow
+# pip install snowflake-connector-python
+# pip install databricks-sql-connector
 
 import time, threading, statistics, argparse, os, sys
 from concurrent.futures import ThreadPoolExecutor
-# pip install matplotlib
-import matplotlib.pyplot as plt  
-# pip install python-dotenv
+import matplotlib as mpl
 from dotenv import load_dotenv
-# pip install pyarrow
 
 # Load environment variables from .env file
 load_dotenv() 
 
 # ---------- connection helpers ----------
 def snowflake_connect():
-    #pip install snowflake-connector-python
     import snowflake.connector
     return snowflake.connector.connect(
         user=os.getenv("SF_USER"),
@@ -26,7 +28,6 @@ def snowflake_connect():
     )
 
 def databricks_connect():
-    #pip install databricks-sql-connector
     from databricks import sql
     return sql.connect(
         server_hostname=os.getenv("SERVER_HOSTNAME"),
@@ -78,7 +79,17 @@ def safe_quantile(times, n, idx):
     except Exception:
         return float('nan')
 
-def plot_results(results):
+def plot_results(results, output_path=None, show=False):
+    # Use a non-interactive backend when not showing to avoid blocking the process
+    if not show:
+        try:
+            mpl.use('Agg')
+        except Exception:
+            pass
+
+    # import pyplot after backend selection
+    import matplotlib.pyplot as plt
+
     users = sorted(next(iter(results.values())).keys())
     fig, ax = plt.subplots(figsize=(10, 6))
     for kind, data in results.items():
@@ -94,14 +105,32 @@ def plot_results(results):
     ax.legend()
     ax.grid(True)
     plt.tight_layout()
-    plt.show()
+
+    # Save if requested
+    if output_path:
+        try:
+            fig.savefig(output_path)
+            print(f"Saved plot to {output_path}")
+        except Exception as e:
+            print(f"Failed to save plot: {e}")
+
+    # Show interactively if requested (this will block)
+    if show:
+        plt.show()
+    else:
+        # Close the figure to free resources and avoid blocking
+        plt.close(fig)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--platforms", nargs="*", default=["snowflake", "databricks"],
                         help="Platforms to benchmark (default: both)")
-    parser.add_argument("--users", nargs="*", type=int, default=[1, 8, 32, 64],
+    parser.add_argument("--users", nargs="*", type=int, default=[1, 8, 16, 32, 64],
                         help="List of concurrent user counts")
+    parser.add_argument("--output", default=None,
+                        help="File path to save the plot (PNG). If not provided a timestamped file will be created")
+    parser.add_argument("--show", action="store_true",
+                        help="Show the plot interactively (will block until closed)")
     args = parser.parse_args()
 
     results = {kind: {} for kind in args.platforms}
@@ -124,4 +153,10 @@ if __name__ == "__main__":
                       f"(n={len(times)})")
             else:
                 print(f"{users:>2} users  →  No data")
-    plot_results(results)
+    # determine output path
+    out = args.output
+    if not out and not args.show:
+        ts = time.strftime('%Y%m%d-%H%M%S')
+        out = os.path.join(os.getcwd(), f'concurrency_bakeoff_{ts}.png')
+
+    plot_results(results, output_path=out, show=args.show)
