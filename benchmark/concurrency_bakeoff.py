@@ -7,6 +7,8 @@
 # pip install snowflake-connector-python
 # pip install databricks-sql-connector
 
+# pip install matplotlib python-dotenv pyarrow snowflake-connector-python databricks-sql-connector
+
 import time, threading, statistics, argparse, os, sys
 from concurrent.futures import ThreadPoolExecutor
 import matplotlib as mpl
