@@ -9,7 +9,7 @@
 
 # pip install matplotlib python-dotenv pyarrow snowflake-connector-python databricks-sql-connector
 
-import time, threading, statistics, argparse, os, sys
+import time, statistics, argparse, os
 from concurrent.futures import ThreadPoolExecutor
 import matplotlib as mpl
 from dotenv import load_dotenv
@@ -34,7 +34,11 @@ def databricks_connect():
     return sql.connect(
         server_hostname=os.getenv("SERVER_HOSTNAME"),
         http_path=os.getenv("HTTP_PATH"),
-        access_token=os.getenv("ACCESS_TOKEN")
+        access_token=os.getenv("ACCESS_TOKEN"),
+        # Avoid Arrow/pandas conversion path that can segfault when mixed with
+        # other native connectors in the same process.
+        use_cloud_fetch=False,
+        _disable_pandas=True,
     )
 
 QUERY = """
@@ -49,15 +53,25 @@ QUERY = """
     GROUP  BY l_returnflag, l_linestatus
 """
 
-TABLE = {"snowflake": "MASTERCLASS.PUBLIC.LINEITEMS_WAREHOUSE", "databricks": "MASTERCLASS.BRONZE.LINEITEMS_WAREHOUSE"}
+TABLE = {"snowflake": "MASTERCLASS.PUBLIC.LINEITEMS_WAREHOUSE", "databricks": "04_CONCURRENCY.DEFAULT.LINEITEMS_WAREHOUSE"}
 
 # ---------- runner ----------
 def run_once(conn, sql_text):
     cur = conn.cursor()
-    t0 = time.perf_counter()
-    cur.execute(sql_text)
-    cur.fetchall()          # force completion
-    return time.perf_counter() - t0
+    try:
+        t0 = time.perf_counter()
+        cur.execute(sql_text)
+        cur.fetchall()          # force completion
+        return time.perf_counter() - t0
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 def exercise(kind, concurrency):
     connect = snowflake_connect if kind == "snowflake" else databricks_connect
@@ -125,7 +139,9 @@ def plot_results(results, output_path=None, show=False):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--platforms", nargs="*", default=["snowflake", "databricks"],
+    parser.add_argument("platforms_pos", nargs="*", choices=["snowflake", "databricks"],
+                        help="Platforms to benchmark (positional). Example: databricks")
+    parser.add_argument("--platforms", dest="platforms_opt", nargs="*", choices=["snowflake", "databricks"], default=None,
                         help="Platforms to benchmark (default: both)")
     parser.add_argument("--users", nargs="*", type=int, default=[1, 8, 16, 32, 64],
                         help="List of concurrent user counts")
@@ -135,8 +151,13 @@ if __name__ == "__main__":
                         help="Show the plot interactively (will block until closed)")
     args = parser.parse_args()
 
-    results = {kind: {} for kind in args.platforms}
-    for kind in args.platforms:
+    if args.platforms_opt is not None:
+        selected_platforms = args.platforms_opt or ["snowflake", "databricks"]
+    else:
+        selected_platforms = args.platforms_pos or ["snowflake", "databricks"]
+
+    results = {kind: {} for kind in selected_platforms}
+    for kind in selected_platforms:
         print(f"\n--- {kind.upper()} ---")
         for users in args.users:
             try:
