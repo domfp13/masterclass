@@ -1,5 +1,6 @@
-# python concurrency_bakeoff.py snowflake OR python concurrency_bakeoff.py databricks
-# python concurrency_bakeoff.py --show
+# python concurrency_bakeoff.py databricks --query-mode query1
+# python concurrency_bakeoff.py snowflake --query-mode query2
+# python concurrency_bakeoff.py --show --query-mode query1
 
 # pip install matplotlib
 # pip install python-dotenv
@@ -41,7 +42,12 @@ def databricks_connect():
         _disable_pandas=True,
     )
 
-QUERY = """
+TABLE = {"snowflake": "MASTERCLASS.PUBLIC.LINEITEMS_WAREHOUSE", "databricks": "04_CONCURRENCY.DEFAULT.LINEITEMS_WAREHOUSE"}
+
+
+def build_query_query1(table):
+    # query1 = fixed cutoff date, preserving original benchmark behavior.
+    return f"""
     SELECT l_returnflag,
         l_linestatus,
         SUM(l_quantity)                          AS total_qty,
@@ -53,7 +59,65 @@ QUERY = """
     GROUP  BY l_returnflag, l_linestatus
 """
 
-TABLE = {"snowflake": "MASTERCLASS.PUBLIC.LINEITEMS_WAREHOUSE", "databricks": "04_CONCURRENCY.DEFAULT.LINEITEMS_WAREHOUSE"}
+
+def build_query_query2(kind, table):
+    # query2 = dynamic cutoff date generated in SQL from table min/max range.
+    if kind == "snowflake":
+        return f"""
+    WITH bounds AS (
+        SELECT MIN(l_shipdate) AS min_shipdate,
+               MAX(l_shipdate) AS max_shipdate
+        FROM {table}
+    ),
+    cutoff AS (
+        SELECT DATEADD(
+                   day,
+                   ABS(MOD(RANDOM(), DATEDIFF(day, min_shipdate, max_shipdate) + 1)),
+                   min_shipdate
+               ) AS cutoff_date
+        FROM bounds
+    )
+    SELECT l_returnflag,
+           l_linestatus,
+           SUM(l_quantity)                     AS total_qty,
+           SUM(l_extendedprice * (1-l_discount)) AS total_revenue,
+           AVG(l_discount)                     AS avg_discount,
+           COUNT(*)                            AS row_cnt
+    FROM {table}
+    WHERE l_shipdate <= (SELECT cutoff_date FROM cutoff)
+    GROUP BY l_returnflag, l_linestatus
+"""
+
+    return f"""
+    WITH bounds AS (
+        SELECT MIN(l_shipdate) AS min_shipdate,
+               MAX(l_shipdate) AS max_shipdate
+        FROM {table}
+    ),
+    cutoff AS (
+        SELECT date_add(
+                   min_shipdate,
+                   CAST(FLOOR(rand() * (datediff(max_shipdate, min_shipdate) + 1)) AS INT)
+               ) AS cutoff_date
+        FROM bounds
+    )
+    SELECT l_returnflag,
+           l_linestatus,
+           SUM(l_quantity)                     AS total_qty,
+           SUM(l_extendedprice * (1-l_discount)) AS total_revenue,
+           AVG(l_discount)                     AS avg_discount,
+           COUNT(*)                            AS row_cnt
+    FROM {table}
+    WHERE l_shipdate <= (SELECT cutoff_date FROM cutoff)
+    GROUP BY l_returnflag, l_linestatus
+"""
+
+
+def build_query(kind, query_mode):
+    table = TABLE[kind]
+    if query_mode == "query2":
+        return build_query_query2(kind, table)
+    return build_query_query1(table)
 
 # ---------- runner ----------
 def run_once(conn, sql_text):
@@ -73,12 +137,13 @@ def run_once(conn, sql_text):
         except Exception:
             pass
 
-def exercise(kind, concurrency):
+def exercise(kind, concurrency, query_mode):
     connect = snowflake_connect if kind == "snowflake" else databricks_connect
+    sql_text = build_query(kind, query_mode)
     durations = []
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         futures = [
-            pool.submit(lambda: run_once(connect(), QUERY.format(table=TABLE[kind])))
+            pool.submit(lambda: run_once(connect(), sql_text))
             for _ in range(concurrency)
         ]
         for f in futures:
@@ -145,6 +210,8 @@ if __name__ == "__main__":
                         help="Platforms to benchmark (default: both)")
     parser.add_argument("--users", nargs="*", type=int, default=[1, 8, 16, 32, 64],
                         help="List of concurrent user counts")
+    parser.add_argument("--query-mode", choices=["query1", "query2"], default="query1",
+                        help="Query mode: query1=fixed date, query2=dynamic random date")
     parser.add_argument("--output", default=None,
                         help="File path to save the plot (PNG). If not provided a timestamped file will be created")
     parser.add_argument("--show", action="store_true",
@@ -156,12 +223,14 @@ if __name__ == "__main__":
     else:
         selected_platforms = args.platforms_pos or ["snowflake", "databricks"]
 
+    print(f"\nSelected query mode: {args.query_mode} ({'fixed' if args.query_mode == 'query1' else 'dynamic'})")
+
     results = {kind: {} for kind in selected_platforms}
     for kind in selected_platforms:
         print(f"\n--- {kind.upper()} ---")
         for users in args.users:
             try:
-                times = exercise(kind, users)
+                times = exercise(kind, users, args.query_mode)
             except Exception as e:
                 print(f"{users:>2} users  →  ERROR: {e}")
                 times = []
