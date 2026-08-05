@@ -42,7 +42,8 @@ def databricks_connect():
         _disable_pandas=True,
     )
 
-TABLE = {"snowflake": "MASTERCLASS.PUBLIC.LINEITEMS_WAREHOUSE", "databricks": "04_CONCURRENCY.DEFAULT.LINEITEMS_WAREHOUSE"}
+#TABLE = {"snowflake": "MASTERCLASS.PUBLIC.LINEITEMS_WAREHOUSE", "databricks": "04_CONCURRENCY.DEFAULT.LINEITEMS_WAREHOUSE"}
+TABLE = {"snowflake": "MASTERCLASS.PUBLIC.LINEITEMS_WAREHOUSE_ICEBERG", "databricks": "05_CONCURRENCY_ICEBERG.DEFAULT.LINEITEMS_WAREHOUSE"}
 
 
 def build_query_query1(table):
